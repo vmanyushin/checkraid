@@ -7,6 +7,7 @@ mkdir -p $VARDIR/{softraid,adaptec,3ware,HP,LSI}
 
 SOFTRAID_INIT_STATE=$VARDIR/softraid/initial_state
 ADAPTEC_INIT_STATE=$VARDIR/adaptec/initial_state
+HP_INIT_STATE=$VARDIR/HP/initial_state
 
 # text color
 COLOR_NORMAL='\e[0m'        #  ${WHITE}

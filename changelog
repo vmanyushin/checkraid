@@ -1,0 +1,10 @@
+Changelog
+=========
+
+%%version%% (unreleased)
+------------------------
+
+- Первый релиз. Реализован мониторинг mdadm, adaptec RAID массивов.
+  [Viktor A. Manyushin]
+
+

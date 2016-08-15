@@ -29,12 +29,15 @@ install_wget
 os_detect
 detect_raid_controller
 
-ARCCONF_URL="http://136.243.156.70/files/arcconf_${DIST_ARCH}"
+ARCCONF_URL="http://136.243.156.70/files/$DIST_FAMILY/$DIST_ARCH/arcconf.${DIST_PACKAGE}"
+HPUTILS_URL="http://136.243.156.70/files/$DIST_FAMILY/$DIST_ARCH/hputils.${DIST_PACKAGE}"
 
 if [[ $RAID_SOFTWARE == true ]]; then
 	software_raid_check
 elif [[ $RAID_ADAPTEC == true ]]; then
 	adaptec_raid_check
+elif [[ $RAID_HP == true ]]; then
+	hp_raid_check
 fi
 
 echo "done"
