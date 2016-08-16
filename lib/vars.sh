@@ -1,13 +1,13 @@
 #!/bin/bash
 
-DEBUG=true
+DEBUG=false
 
-VARDIR=/var/lib/raid_status
+VARDIR=/opt/raid-tools/var
 mkdir -p $VARDIR/{softraid,adaptec,3ware,HP,LSI}
 
 SOFTRAID_INIT_STATE=$VARDIR/softraid/initial_state
 ADAPTEC_INIT_STATE=$VARDIR/adaptec/initial_state
-HP_INIT_STATE=$VARDIR/HP/initial_state
+HP_INIT_STATE=$VARDIR/HP
 
 # text color
 COLOR_NORMAL='\e[0m'        #  ${WHITE}
@@ -19,3 +19,5 @@ COLOR_BLUE='\033[0;34m'     #  ${BLUE}
 COLOR_MAGENTA='\033[0;35m'  #  ${MAGENTA}
 COLOR_CYAN='\033[0;36m'     #  ${CYAN}
 COLOR_GRAY='\033[0;37m'     #  ${GRAY}
+
+NOTIFY_URL="http://37.1.200.48:9001/notify.php"

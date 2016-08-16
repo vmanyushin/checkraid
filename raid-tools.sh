@@ -16,8 +16,19 @@ OLD_CWD=$(pwd)
 CWD="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $CWD
 
-. ./checkraid_vars.sh
-. ./checkraid_functions.sh
+
+. ./lib/utils.sh
+. ./lib/vars.sh
+. ./lib/functions.sh
+
+while getopts ":ydh" opt
+do
+	case $opt in
+		y) ANSWER=y    ;; # при запросах y/n отвечаем всегда y
+		d) DEBUG=true  ;; # включаем режим отдадки
+		h) help_message;; # вывести инструкцию
+	esac
+done
 
 RAID_SOFTWARE=false
 RAID_ADAPTEC=false
