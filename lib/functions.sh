@@ -300,6 +300,13 @@ function adaptec_raid_check
 
 function hp_raid_check
 {
+	$(lockfile -r 2 var/run/hpacucli.lock > /dev/null)
+	
+	if [[ "$?" != "0" ]]; then
+		echo "Запущен другой процесс hpacucli ($?)"
+		exit 1
+	fi
+
 	echo "В системе обнаружен RAID контроллер" $(hpacucli ctrl all show detail | sed '2!d')
 
 	if [[ $(which hpacucli | grep hpacucli -c ) -ne 1 ]]; then
@@ -326,6 +333,7 @@ function hp_raid_check
 		[[ $DEBUG == true ]] && debug $line
 
 		[[ $line =~ 'Slot:' ]] && CONTROLLER_SLOT="${line#[[:space:]]*Slot:[[:space:]]}"
+		[[ $line =~ 'Firmware Version:' ]] && CONTROLLER_FIRMWARE="${line#[[:space:]]*Firmware Version:[[:space:]]}"
 		[[ $line =~ 'Controller Status:' ]] && CONTROLLER_STATUS="${line#[[:space:]]*Controller Status:[[:space:]]}"
 		[[ $line =~ 'Drive Write Cache:' ]] && CONTROLLER_WRITE_CACHE="${line#[[:space:]]*Drive Write Cache:[[:space:]]}"
 		[[ $line =~ 'Battery/Capacitor Status:' ]] && CONTROLLER_BATTERY="${line#[[:space:]]*Battery/Capacitor Status:[[:space:]]}"
@@ -337,6 +345,7 @@ function hp_raid_check
 
 	echo ""
 	rpad "Контроллер в слоте" 32 " : ${CONTROLLER_SLOT}\n"
+	rpad "Версия прошивки" 32 " : ${CONTROLLER_FIRMWARE}\n"
 	
 	[[ $CONTROLLER_STATUS == "OK" ]] && rpad "Статус контроллера" 32 " : ${COLOR_GREEN}${CONTROLLER_STATUS}${COLOR_NORMAL}\n"
 	[[ $CONTROLLER_STATUS != "OK" ]] && rpad "Статус контроллера" 32 " : ${COLOR_GREEN}${CONTROLLER_STATUS}${COLOR_NORMAL}\n"
@@ -478,6 +487,8 @@ function hp_raid_check
 	echo "*/1 * * * * root cd $CWD && ./jobs/hp_smartarray.sh" > /etc/cron.d/hp_smartarray-monitor
 
 	IFS=$OLD_IFS
+
+	rm -f var/run/hpacucli.lock
 }
 
 function hp_get_spair_device
