@@ -307,8 +307,6 @@ function hp_raid_check
 		exit 1
 	fi
 
-	echo "В системе обнаружен RAID контроллер" $(hpacucli ctrl all show detail | sed '2!d')
-
 	if [[ $(which hpacucli | grep hpacucli -c ) -ne 1 ]]; then
 		fail "в системе присутствуют RAID массивы но не установлен hpacucli"
 		echo ""
@@ -322,6 +320,8 @@ function hp_raid_check
 
 		install_raid_utils "HPUTILS"
 	fi
+
+	echo "В системе обнаружен RAID контроллер" $(hpacucli ctrl all show detail | sed '2!d')
 
 	OLD_IFS=$IFS
 	IFS=$'\n'
@@ -350,8 +350,8 @@ function hp_raid_check
 	[[ $CONTROLLER_STATUS == "OK" ]] && rpad "Статус контроллера" 32 " : ${COLOR_GREEN}${CONTROLLER_STATUS}${COLOR_NORMAL}\n"
 	[[ $CONTROLLER_STATUS != "OK" ]] && rpad "Статус контроллера" 32 " : ${COLOR_GREEN}${CONTROLLER_STATUS}${COLOR_NORMAL}\n"
 
-	[[ $CONTROLLER_CACHE_PRESENT == "True" ]] && rpad "Кэш память присутствует" 32 " : ${COLOR_GREEN}${CONTROLLER_WRITE_CACHE}${COLOR_NORMAL}\n"
-	[[ $CONTROLLER_CACHE_PRESENT != "True" ]] && rpad "Кэш память присутствует" 32 " : ${COLOR_YELLOW}${CONTROLLER_WRITE_CACHE}${COLOR_NORMAL}\n"
+	[[ $CONTROLLER_CACHE_PRESENT == "True" ]] && rpad "Кэш память присутствует" 32 " : ${COLOR_GREEN}${CONTROLLER_CACHE_PRESENT}${COLOR_NORMAL}\n"
+	[[ $CONTROLLER_CACHE_PRESENT != "True" ]] && rpad "Кэш память присутствует" 32 " : ${COLOR_YELLOW}${CONTROLLER_CACHE_PRESENT}${COLOR_NORMAL}\n"
 
 	[[ -n $CONTROLLER_CACHE_SIZE ]] && rpad "Размер кэш памяти" 32 " : ${CONTROLLER_CACHE_SIZE}\n"
 
