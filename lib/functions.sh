@@ -365,14 +365,6 @@ function hp_raid_check
 
 	[[ -n $CONTROLLER_NO_BATTERY_WRITE_CACHE ]] && rpad "Кэш на запись без батареи" 32 " : ${CONTROLLER_NO_BATTERY_WRITE_CACHE}\n" 
 
-	# if [[ $CONTROLLER_WRITE_CACHE == "Disabled" ]]; then
-	# 	echo ""
-	# 	echo -e "${COLOR_CYAN}* включить кэш на запись можно командой: 'hpacucli ctrl slot=5 modify dwc=enable'${COLOR_NORMAL}"
-	# 	echo ""
-	# fi
-
-	
-
 	declare -a files
 	local volume
 	local count=0
@@ -433,8 +425,8 @@ function hp_raid_check
 
     		if [[ $num -eq $VOLUME_NUMBER && $devices =~ "physicaldrive" ]]; then
         		local harddrive=$(echo "$devices" | awk '{ print $2 }')
-
-        		for info in $(hpacucli ctrl slot=$CONTROLLER_SLOT pd $harddrive show | sed -re "s/\s{2,}//" | grep -v "^$" | tail -n 17)
+        		
+        		for info in $(hpacucli ctrl slot=$CONTROLLER_SLOT pd $harddrive show | sed -re "s/\s{2,}//" | grep -v "^$")
         		do
 					[[ $DEBUG == true ]] && debug $info
 
@@ -449,6 +441,14 @@ function hp_raid_check
 					DEVICE_SERIAL=$(echo $DEVICE_SERIAL | sed -re "s/^\s*//; s/\s{2,}/ /")
 				done
 
+				if [[ $DEVICE_STATUS == "Failed" ]]; then
+					DEVICE_STATUS="${COLOR_RED}${DEVICE_STATUS}${COLOR_NORMAL}"
+					DEVICE_TYPE="Drive Offline"
+				elif [[ $DEVICE_STATUS == "Rebuilding" ]]; then
+					DEVICE_STATUS="${COLOR_YELLOW}${DEVICE_STATUS}${COLOR_NORMAL}"
+				fi
+
+
 				[[ $DEBUG == true ]] && echo ""
 				echo -e "$DEVICE_PORT\t$DEVICE_TYPE\t$DEVICE_MODEL\t$DEVICE_SERIAL\t$DEVICE_SIZE\t$DEVICE_STATUS" >> $filename
 				echo "${DEVICE_PORT};${DEVICE_TYPE};${DEVICE_MODEL};${DEVICE_SERIAL};${DEVICE_SIZE};${DEVICE_STATUS}" >> $volume_filename
@@ -462,14 +462,21 @@ function hp_raid_check
 		count=$(( $count + 1 ))
 	done
 
+	rm -f var/run/hpacucli.lock
 
-	echo "Убедитесь, что информация верна и отсутствуют ошибки"
-	read -p  "сохранить данную конфигурацию Y/n"  -n 1 -r
-
-	local $REPLY
-
-	if [[ $REPLY =~ ^[Nn]$ ]]; then
+	if [[ $1 == "REPORT" ]]; then
 		return
+	fi
+
+	if [[ $AUTO_ANSWER == "no" ]]; then
+		echo "Убедитесь, что информация верна и отсутствуют ошибки"
+		read -p  "сохранить данную конфигурацию Y/n"  -n 1 -r
+
+		local $REPLY
+
+		if [[ $REPLY =~ ^[Nn]$ ]]; then
+			return
+		fi
 	fi
 
 	rm -f $HP_INIT_STATE/*
@@ -487,8 +494,11 @@ function hp_raid_check
 	echo "*/1 * * * * root cd $CWD && ./jobs/hp_smartarray.sh" > /etc/cron.d/hp_smartarray-monitor
 
 	IFS=$OLD_IFS
+}
 
-	rm -f var/run/hpacucli.lock
+function hp_make_report
+{
+	hp_raid_check "REPORT"
 }
 
 function hp_get_spair_device
@@ -518,43 +528,12 @@ function hp_get_spair_device
 
 function hp_check_volume_status
 {
-	if [[ $(hpacucli ctrl slot=$1 ld $2 show status | grep -v "^$" | grep 'OK' -c) != 1 ]]; then
-		echo "1"
-	elif [[ $(hp_get_volume_type $1 $2) != "$3" ]]; then
-		echo "2"
-	else
-		echo "0"
-	fi
+	echo $(hpacucli ctrl slot=$1 ld $2 show status | grep -v "^$" | sed -re "s/\s+//" | awk -F": " '{print $2}')
 }
 
 function hp_check_disk_status
 {
-	local line DEVICE_STATUS DEVICE_SERIAL DEVICE_TYPE
-
-	if [[ $(hpacucli ctrl slot=$1 pd $2 show status | grep "physicaldrive" -c) != "1" ]];then
-		echo "4"
-		return
-	fi
-
-	for line in $(hpacucli ctrl slot=$1 pd $2 show | grep -v "^$" | sed -re "s/\s{2,}//")	
-	do
-		
-		[[ $line =~ "Status:" ]]         && DEVICE_STATUS="${line#Status:[[:space:]]}"
-		[[ $line =~ "Drive Type:" ]]     && DEVICE_TYPE="${line#Drive Type:[[:space:]]}"
-		[[ $line =~ "Serial Number:" ]]  && DEVICE_SERIAL="${line#Serial Number:[[:space:]]}"
-
-		DEVICE_SERIAL=$(echo $DEVICE_SERIAL | sed -re "s/^\s*//; s/\s{2,}/ /")
-	done
-
-	if [[ "$DEVICE_STATUS" != "OK" ]]; then
-		echo "1"
-	elif [[ "$DEVICE_SERIAL" != "$3" ]]; then
-		echo "2"
-	elif [[ "$DEVICE_TYPE" != "$4" ]]; then
-		echo "3"
-	else
-		echo "0"
-	fi
+	echo $(hpacucli ctrl slot=$1 pd $2 show status | grep -v "^$" | sed -re "s/\s+//" | awk -F": " '{print $2}')
 }
 
 function hp_get_drive_type
@@ -568,6 +547,21 @@ function hp_get_drive_type
 
 	echo $DEVICE_TYPE
 }
+
+function hp_get_drive_serial
+{
+	local line DEVICE_SERIAL
+
+	for line in $(hpacucli ctrl slot=$1 pd $2 show | grep -v "^$" | sed -re "s/\s{2,}//")	
+	do
+		[[ $line =~ "Serial Number:" ]] && DEVICE_SERIAL="${line#Serial Number:[[:space:]]}"
+	done
+
+	DEVICE_SERIAL=$(echo $DEVICE_SERIAL | sed -re "s/^\s*//; s/\s{2,}/ /")
+
+	echo $DEVICE_SERIAL
+}
+
 
 function hp_get_volume_type
 {

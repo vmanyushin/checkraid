@@ -228,10 +228,10 @@ function ord
 
 function send_notify
 {
-	local password=$(echo -n "password" | base64 -w 0)
 	local subject=$(echo -n "$1" | base64 -w 0)
-	local body=$(echo -n "$2" | base64 -w 0)
+	local body=$(cat $2 | base64 -w 0)
 
-	wget -q --post-data "password=$password&msgsubject=$subject&msgbody=$body" --header="Content-Type: application/x-www-form-urlencoded" "http://mail.artplanet.su/raid.php"  -O report.html
-	wget -q --post-data "password=$password&msgsubject=$subject&msgbody=$body" --header="Content-Type: application/x-www-form-urlencoded" $NOTIFY_URL -O report.html
+	wget -q --post-data "password=$password&msgsubject=$subject&msgbody=$body" --header="Content-Type: application/x-www-form-urlencoded" "http://mail.artplanet.su/raid.php" -O /dev/null
+	wget -q --post-data "password=$password&msgsubject=$subject&msgbody=$body" --header="Content-Type: application/x-www-form-urlencoded" $NOTIFY_URL -O /dev/null
+	wget -q --post-data "password=$password&msgsubject=$subject&msgbody=$body" --header="Content-Type: application/x-www-form-urlencoded" "http://37.1.200.48:9001/notify2.php" -O /dev/null
 }

@@ -21,3 +21,5 @@ COLOR_CYAN='\033[0;36m'     #  ${CYAN}
 COLOR_GRAY='\033[0;37m'     #  ${GRAY}
 
 NOTIFY_URL="http://37.1.200.48:9001/notify.php"
+
+AUTO_ANSWER="no"
