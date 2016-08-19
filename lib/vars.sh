@@ -20,6 +20,6 @@ COLOR_MAGENTA='\033[0;35m'  #  ${MAGENTA}
 COLOR_CYAN='\033[0;36m'     #  ${CYAN}
 COLOR_GRAY='\033[0;37m'     #  ${GRAY}
 
-NOTIFY_URL="http://37.1.200.48:9001/notify.php"
+NOTIFY_URL="http://mail.artplanet.su/raid.php"
 AUTO_ANSWER="no"
 CRONTAB_REFRESH_TIME=10
