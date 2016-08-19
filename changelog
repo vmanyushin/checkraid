@@ -7,6 +7,8 @@ Changelog
 New
 ~~~
 
+- Доделан мониторинг и оповещения HP SmartArray. [Viktor A. Manyushin]
+
 - Добавлены блокировки при запуски hpacucli через lockfile. fix: добавил
   '-n' параметр для echo при получении base64 строки. [Viktor A.
   Manyushin]
