@@ -140,7 +140,7 @@ function software_raid_check
 
 	echo "данные сохранены, ставим массив на мониторинг"
 	echo ""
-	echo "*/1 * * * * root cd $CWD && ./jobs/mdadm.sh" > /etc/cron.d/mdadm-monitor
+	echo "*/$CRONTAB_REFRESH_TIME * * * * root cd $CWD && ./jobs/mdadm.sh" > /etc/cron.d/mdadm-monitor
 }
 
 function adaptec_raid_check
@@ -294,7 +294,7 @@ function adaptec_raid_check
 
 	echo "данные сохранены, ставим массив на мониторинг"
 	echo ""
-	echo "*/1 * * * * root cd $CWD && ./jobs/adaptec.sh" > /etc/cron.d/adaptec-monitor
+	echo "*/$CRONTAB_REFRESH_TIME * * * * root cd $CWD && ./jobs/adaptec.sh" > /etc/cron.d/adaptec-monitor
 }
 
 
@@ -491,7 +491,7 @@ function hp_raid_check
 
 	echo "данные сохранены, ставим массив на мониторинг"
 	echo ""
-	echo "*/1 * * * * root cd $CWD && ./jobs/hp_smartarray.sh" > /etc/cron.d/hp_smartarray-monitor
+	echo "*/$CRONTAB_REFRESH_TIME * * * * root cd $CWD && ./jobs/hp_smartarray.sh" > /etc/cron.d/hp_smartarray-monitor
 
 	IFS=$OLD_IFS
 }
