@@ -321,7 +321,10 @@ function hp_raid_check
 		install_raid_utils "HPUTILS"
 	fi
 
-	echo "В системе обнаружен RAID контроллер" $(hpacucli ctrl all show detail | sed '2!d')
+	local CONTROLLER_NAME=$(hp_get_controller_name)
+	echo "В системе обнаружен RAID контроллер $CONTROLLER_NAME" 
+
+	local IS_FAILED=false
 
 	OLD_IFS=$IFS
 	IFS=$'\n'
@@ -348,7 +351,11 @@ function hp_raid_check
 	rpad "Версия прошивки" 32 " : ${CONTROLLER_FIRMWARE}\n"
 	
 	[[ $CONTROLLER_STATUS == "OK" ]] && rpad "Статус контроллера" 32 " : ${COLOR_GREEN}${CONTROLLER_STATUS}${COLOR_NORMAL}\n"
-	[[ $CONTROLLER_STATUS != "OK" ]] && rpad "Статус контроллера" 32 " : ${COLOR_GREEN}${CONTROLLER_STATUS}${COLOR_NORMAL}\n"
+
+	if [[ $CONTROLLER_STATUS != "OK" ]]; then
+		rpad "Статус контроллера" 32 " : ${COLOR_GREEN}${CONTROLLER_STATUS}${COLOR_NORMAL}\n"
+		IS_FAILED=true
+	fi
 
 	[[ $CONTROLLER_CACHE_PRESENT == "True" ]] && rpad "Кэш память присутствует" 32 " : ${COLOR_GREEN}${CONTROLLER_CACHE_PRESENT}${COLOR_NORMAL}\n"
 	[[ $CONTROLLER_CACHE_PRESENT != "True" ]] && rpad "Кэш память присутствует" 32 " : ${COLOR_YELLOW}${CONTROLLER_CACHE_PRESENT}${COLOR_NORMAL}\n"
@@ -395,7 +402,10 @@ function hp_raid_check
 			
 		rpad "Статус" 32 " : "
 		[[ $VOLUME_STATUS == "OK" ]] && ok "$VOLUME_STATUS\n"
-		[[ $VOLUME_STATUS != "OK" ]] && fail "$VOLUME_STATUS\n"
+		if [[ $VOLUME_STATUS != "OK" ]]; then
+			fail "$VOLUME_STATUS\n"
+			IS_FAILED=true
+		fi
 
 		rpad "Размер массива" 32 " : $VOLUME_SIZE\n"
 		rpad "Название диска" 32 " : $VOLUME_NAME\n"
@@ -441,6 +451,8 @@ function hp_raid_check
 					DEVICE_SERIAL=$(echo $DEVICE_SERIAL | sed -re "s/^\s*//; s/\s{2,}/ /")
 				done
 
+				if [[ $DEVICE_STATUS != "OK "]] && IS_FAILED=true
+
 				if [[ $DEVICE_STATUS == "Failed" ]]; then
 					DEVICE_STATUS="${COLOR_RED}${DEVICE_STATUS}${COLOR_NORMAL}"
 					DEVICE_TYPE="Drive Offline"
@@ -469,6 +481,12 @@ function hp_raid_check
 	fi
 
 	if [[ $AUTO_ANSWER == "no" ]]; then
+
+		if [[ $IS_FAILED == "true" ]]; then
+			echo "Состояние контроллера или одного из его массивов или дисков содержит ошибку. Устраните ошибки до постановки контроллера на мониторинг"
+			exit 1
+		fi
+
 		echo "Убедитесь, что информация верна и отсутствуют ошибки"
 		read -p  "сохранить данную конфигурацию Y/n"  -n 1 -r
 
@@ -492,6 +510,8 @@ function hp_raid_check
 	echo "данные сохранены, ставим массив на мониторинг"
 	echo ""
 	echo "*/$CRONTAB_REFRESH_TIME * * * * root cd $CWD && ./jobs/hp_smartarray.sh" > /etc/cron.d/hp_smartarray-monitor
+
+	send_notify "Контроллер $CONTROLLER_NAME поставлен на мониторинг"
 
 	IFS=$OLD_IFS
 }
@@ -566,4 +586,9 @@ function hp_get_drive_serial
 function hp_get_volume_type
 {
 	echo $(hpacucli ctrl slot=$1 ld $2 show | grep "Fault Tolerance:" | sed -re "s/^\s*//" | awk -F": " '{print $2}')
+}
+
+function hp_get_controller_name
+{
+	echo $(hpacucli ctrl all show detail | sed '2!d')
 }
