@@ -1,6 +1,20 @@
 Changelog
 =========
 
+%%version%% (unreleased)
+------------------------
+
+- Upd: Изменил интерпретатор Awk на GAwk, переделал скрипт сборки
+  пакетов, добавил зависимости wget, gawk, pciutils. [Viktor A.
+  Manyushin]
+
+- Upd: удаляем из репозитория папку packages что бы она не вошла в
+  состав новых пакетов. [Viktor A. Manyushin]
+
+- Сделал сборку DEB и RPM пакетов. [Viktor A. Manyushin]
+
+- Версия 0.3. [Viktor A. Manyushin]
+
 0.3 (2016-08-22)
 ----------------
 
