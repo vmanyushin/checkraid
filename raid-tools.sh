@@ -36,8 +36,8 @@ RAID_HP=false
 RAID_LSI=false
 RAID_3WARE=false
 
-install_wget
 os_detect
+install_requirements
 detect_raid_controller
 
 ARCCONF_URL="http://136.243.156.70/files/$DIST_FAMILY/$DIST_ARCH/arcconf.${DIST_PACKAGE}"

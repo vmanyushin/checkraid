@@ -5,8 +5,8 @@ DEBUG=false
 VARDIR=/opt/raid-tools/var
 mkdir -p $VARDIR/{softraid,adaptec,3ware,HP,LSI}
 
-SOFTRAID_INIT_STATE=$VARDIR/softraid/initial_state
-ADAPTEC_INIT_STATE=$VARDIR/adaptec/initial_state
+SOFTRAID_INIT_STATE=$VARDIR/softraid
+ADAPTEC_INIT_STATE=$VARDIR/adaptec
 HP_INIT_STATE=$VARDIR/HP
 
 # text color
@@ -22,4 +22,4 @@ COLOR_GRAY='\033[0;37m'     #  ${GRAY}
 
 NOTIFY_URL="http://mail.artplanet.su/raid.php"
 AUTO_ANSWER="no"
-CRONTAB_REFRESH_TIME=10
+CRONTAB_REFRESH_TIME=3

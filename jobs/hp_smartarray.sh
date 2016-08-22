@@ -9,9 +9,8 @@ cd $CWD
 . ../lib/vars.sh
 . ../lib/functions.sh
 . ../lib/utils.sh
-. ../lib/test_functions.sh
 
-EXIT_STATUS=0
+EXIT_STATUS=""
 DEBUG=false
 
 while getopts ":d" opt
@@ -62,6 +61,7 @@ fi
 
 for volume_file in $(ls $HP_INIT_STATE/*)
 do
+	[[ $volume_file == ".gitignore" ]] && continue
 	[[ $DEBUG == true ]] && debug $volume_file
 	count=0
 
@@ -116,16 +116,16 @@ do
 			# serial=$(test_hp_get_drive_serial $CONTROLLER_SLOT ${disk[0]})
 			serial=$(hp_get_drive_serial $CONTROLLER_SLOT ${disk[0]})
 
-			if [[ $serial != "${disk[3]}" ]]; then
-				EXIT_STATUS=${EXIT_STATUS:-2}
+			if [[ $serial != "${disk[3]}" && EXIT_STATUS == 0 ]]; then
+				EXIT_STATUS=2
 			fi
 
 			# для тестирования
 			# drive_type=$(test_hp_get_drive_type $CONTROLLER_SLOT ${disk[0]})
 			drive_type=$(hp_get_drive_type $CONTROLLER_SLOT ${disk[0]})
 
-			if [[ $drive_type != "${disk[1]}" ]]; then
-				EXIT_STATUS=${EXIT_STATUS:-2}
+			if [[ $drive_type != "${disk[1]}" && EXIT_STATUS == 0 ]]; then
+				EXIT_STATUS=2
 			fi
 		fi
 
@@ -137,19 +137,29 @@ IFS=$OLD_IFS
 rm -f ../var/run/hpacucli.lock
 
 sleep 1 && cd ..
+CWD="$( pwd )"
 
 [[ $DEBUG == "true" ]] && debug "EXIT_STATUS = $EXIT_STATUS"
 
 if [[ $EXIT_STATUS == "1" ]]; then
-	
+	[[ ! -f $VARDIR/adaptec/.error ]] && touch $VARDIR/adaptec/.error	
  	message=$(hp_make_report)
  	report="tmp/${RANDOM}.report.txt"
  	echo "$message" | lib/ansi2html.sh > $report
- 	send_notify "Обнаружены ошибки в RAID массиве" $report
- elif [[ $EXIT_STATUS == "2" ]]; then
- 	AUTO_ANSWER="yes"
- 	hp_raid_check 
-fi
+ 	send_notify "На сервере" $(get_primary_ip_address) "обнаружены ошибки в RAID массиве" $report
+elif [[ $EXIT_STATUS == "2" ]]; then
+	AUTO_ANSWER="yes"
+ 	hp_raid_check
+else
+	if [[ -f $VARDIR/adaptec/.error ]]; then
+		rm -f $VARDIR/adaptec/.error
+		subject="На сервере $(get_primary_ip_address) ошибки в RAID массиве устарнены"
+ 		message=$(adaptec_raid_check "REPORT")
+ 		report="tmp/${RANDOM}.report.txt"
+ 		echo "$message" | lib/ansi2html.sh > $report
+ 		send_notify $subject $report
+	fi
+fi 	
 
 cd $OLD_CWD
 exit $EXIT_STATUS

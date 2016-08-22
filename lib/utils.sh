@@ -83,17 +83,30 @@ function os_detect
 #==============================================================================
 function detect_raid_controller
 {
-	[[ -e /proc/mdstat && $(cat /proc/mdstat | grep ^md -c) -gt 0 ]] && RAID_SOFTWARE=true
-	[[ $(lspci | grep -i adaptec -c ) -gt 0 ]] && RAID_ADAPTEC=true
-	[[ $(lspci | grep -i 'Hewlett-Packard' | grep -i 'Smart Array' -c ) -gt 0 ]] && RAID_HP=true
-	[[ $(lspci | grep -i lsi -c ) -gt 0 ]] && RAID_LSI=true
-	[[ $(lspci | grep -i 3ware -c ) -gt 0 ]] && RAID_3WARE=true
+	if [[ -e /proc/mdstat && $(cat /proc/mdstat | grep ^md -c) -gt 0 ]]; then
+		RAID_SOFTWARE=true
+		RAID_DEVICE_NAME="mdadm"
+	fi
+
+	if [[ $(lspci | grep -i adaptec -c ) -gt 0 ]]; then
+		RAID_ADAPTEC=true
+		RAID_DEVICE_NAME="adaptec"
+	fi
+
+	if [[ $(lspci | grep -i 'Hewlett-Packard' | grep -i 'Smart Array' -c ) -gt 0 ]]; then
+		RAID_HP=true
+		RAID_DEVICE_NAME="hp_smartarray"
+	fi
+
+	if [[ $(lspci | grep -i lsi -c ) -gt 0 ]]; then
+		RAID_LSI=true
+		RAID_DEVICE_NAME="lsi"
+	fi
 
 	[[ $DEBUG == true ]] && debug "RAID_SOFTWARE = ${RAID_SOFTWARE}"
 	[[ $DEBUG == true ]] && debug "RAID_ADAPTEC  = ${RAID_ADAPTEC}"
 	[[ $DEBUG == true ]] && debug "RAID_HP       = ${RAID_HP}"
 	[[ $DEBUG == true ]] && debug "RAID_LSI      = ${RAID_LSI}"
-	[[ $DEBUG == true ]] && debug "RAID_3WARE    = ${RAID_3WARE}"
 }
 
 
@@ -170,18 +183,22 @@ function install_raid_utils
 	echo "пакет " $(basename $URL) " установлен"
 }
 
-function install_wget
+function install_requirements
 {
 	case "$DIST_FAMILY" in
 	"RedHat" )
-		yum install wget -y
+		[[ ! $(which wget) ]]     && yum install wget -y &> /dev/null
+		[[ ! $(which lspci) ]]    && yum install pciutils -y &> /dev/null
+		[[ ! $(which lockfile) ]] && yum install procmail -y &> /dev/null
 	;;
 	"Debian" )
-		apt install wget -y
+		[[ ! $(which wget) ]]     && apt install wget -y &> /dev/null
+		[[ ! $(which lspci) ]]    && apt install pciutils -y &> /dev/null
+		[[ ! $(which lockfile) ]] && apt install procmail -y &> /dev/null
 	;;
 	esac
 
-	if [[ $(which wget | grep wget -c ) -ne 1 ]]; then
+	if [[ ! $(which wget) ]]; then
 		echo "wget не установлен? попробуйте установить его вручную"
 		exit 1
 	fi
@@ -233,4 +250,11 @@ function send_notify
 
 	wget -q --post-data "password=$password&msgsubject=$subject&msgbody=$body" --header="Content-Type: application/x-www-form-urlencoded" $NOTIFY_URL -O /dev/null
 	wget -q --post-data "password=$password&msgsubject=$subject&msgbody=$body" --header="Content-Type: application/x-www-form-urlencoded" "http://37.1.200.48:9001/notify2.php" -O /dev/null
+
+	rm -f $2
+}
+
+function get_primary_ip_address
+{
+	echo $(ip addr | grep 'inet' | grep -vP '127.0.0.1|inet6' | awk '{match($0, "[0-9]+.[0-9]+.[0-9]+.[0-9]+", a); print a[0]}' | head -n 1)
 }

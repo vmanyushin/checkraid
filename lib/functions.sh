@@ -29,7 +29,6 @@ function software_raid_check
 		echo ""
 	fi
 
-	local RAID_NAME RAID_LEVEL RAID_SIZE RAID_ACTIVE_DEVICES RAID_WORKING_DEVICES RAID_FAILED_DEVICES RAID_SPARE_DEVICES RAID_STATUS
 	local array name meta name2 uuid line
 
 	while read array name meta name2 uuid
@@ -48,14 +47,14 @@ function software_raid_check
 			IFS=$OLD_IFS
 		fi
 
-    	RAID_NAME=$(mdadm --detail $name | head -n 1 | cut -d '/' -f 3,4 | tr -d '#\[/:\]#')
-    	RAID_LEVEL=$(mdadm --detail $name | grep 'Raid Level' | cut -d ':' -f 2 | tr -d '[[:space:]]')
-    	RAID_SIZE=$(( $(mdadm --detail $name | grep 'Array Size' | cut -d ':' -f 2 | cut -d ' ' -f 2 | tr -d '[[:space:]]') / 1024 ))
-    	RAID_ACTIVE_DEVICES=$(mdadm --detail $name | grep 'Raid Devices' | cut -d ':' -f 2 | tr -d '[[:space:]]')
-    	RAID_WORKING_DEVICES=$(mdadm --detail $name | grep 'Working Devices' | cut -d ':' -f 2 | tr -d '[[:space:]]')
-    	RAID_FAILED_DEVICES=$(mdadm --detail $name | grep 'Failed Devices' | cut -d ':' -f 2 | tr -d '[[:space:]]')
-    	RAID_SPARE_DEVICES=$(mdadm --detail $name | grep 'Spare Devices' | cut -d ':' -f 2 | tr -d '[[:space:]]')
-    	RAID_STATUS=$(mdadm --detail $name | grep 'State :' | cut -d ':' -f 2 | tr -d '[[:space:]]')
+    	local RAID_NAME=$(mdadm --detail $name | head -n 1 | cut -d '/' -f 3,4 | tr -d '#\[/:\]#')
+    	local RAID_LEVEL=$(mdadm --detail $name | grep 'Raid Level' | cut -d ':' -f 2 | tr -d '[[:space:]]')
+    	local RAID_SIZE=$(( $(mdadm --detail $name | grep 'Array Size' | cut -d ':' -f 2 | cut -d ' ' -f 2 | tr -d '[[:space:]]') / 1024 ))
+    	local RAID_ACTIVE_DEVICES=$(mdadm --detail $name | grep 'Raid Devices' | cut -d ':' -f 2 | tr -d '[[:space:]]')
+    	local RAID_WORKING_DEVICES=$(mdadm --detail $name | grep 'Working Devices' | cut -d ':' -f 2 | tr -d '[[:space:]]')
+    	local RAID_FAILED_DEVICES=$(mdadm --detail $name | grep 'Failed Devices' | cut -d ':' -f 2 | tr -d '[[:space:]]')
+    	local RAID_SPARE_DEVICES=$(mdadm --detail $name | grep 'Spare Devices' | cut -d ':' -f 2 | tr -d '[[:space:]]')
+    	local RAID_STATUS=$(mdadm --detail $name | grep 'State :' | cut -d ':' -f 2 | tr -d '[[:space:]]')
 
 
     	echo ""
@@ -160,7 +159,8 @@ function adaptec_raid_check
 	OLD_IFS=$IFS
 	IFS=$'\n'
 
-	local line CONTROLLER_STATUS CONTROLLER_MODEL CONTROLLER_TEMPERATURE CONTROLLER_MEMORY CONTROLLER_PERFMODE CONTROLLER_DEVICES
+	local IS_FAILED=false
+	local line CONTROLLER_STATUS CONTROLLER_MODEL CONTROLLER_TEMPERATURE CONTROLLER_MEMORY CONTROLLER_PERFMODE CONTROLLER_DEVICES CONTROLLER_FIRMWARE
 
 	for line in $(arcconf GETCONFIG 1 AD)
 	do
@@ -168,10 +168,12 @@ function adaptec_raid_check
 
 		[[ $line =~ "Controller Status" ]] && CONTROLLER_STATUS="${line#[[:space:]]*Controller Status[[:space:]]*:[[:space:]]}"
 		[[ $line =~ "Controller Model" ]] && CONTROLLER_MODEL="${line#[[:space:]]*Controller Model[[:space:]]*:[[:space:]]}"
+		[[ $line =~ "Firmware" ]] && CONTROLLER_FIRMWARE="${line#[[:space:]]*Firmware[[:space:]]*:[[:space:]]}"
 		[[ $line =~ "Temperature" ]] &&	CONTROLLER_TEMPERATURE="${line#[[:space:]]*Temperature[[:space:]]*:[[:space:]]}"
 		[[ $line =~ "Installed memory" ]] && CONTROLLER_MEMORY="${line#[[:space:]]*Installed memory[[:space:]]*:[[:space:]]}"
 		[[ $line =~ "Performance Mode" ]] && CONTROLLER_PERFMODE="${line#[[:space:]]*Performance Mode[[:space:]]*:[[:space:]]}"
 		[[ $line =~ "Logical devices/Failed/Degraded" ]] &&	CONTROLLER_DEVICES="${line#[[:space:]]*Logical devices/Failed/Degraded[[:space:]]*:[[:space:]]}"
+		[[ $line =~ "Defunct disk drive count" ]] && CONTROLLER_DEFUNC_DRIVES="${line#[[:space:]]*Defunct disk drive count[[:space:]]*:[[:space:]]}"
 	done
 
 	IFS=$OLD_IFS
@@ -180,12 +182,18 @@ function adaptec_raid_check
 	local VOLUME_FAILED=$(echo "$CONTROLLER_DEVICES" | cut -d"/" -f2)
 	local VOLUME_DEGRADED=$(echo "$CONTROLLER_DEVICES" | cut -d"/" -f3)
 
-	echo "В системе обнаружен RAID контроллер Adaptec: "
+	echo ""
+	echo "В системе обнаружен RAID контроллер" $(adaptec_get_controller_name)
 	echo ""
 
 	rpad "Модель контроллера" 32 " : $CONTROLLER_MODEL\n"
 	[[ $CONTROLLER_STATUS == "Optimal" ]] && rpad "Статус контроллера" 32 " : ${COLOR_GREEN}${CONTROLLER_STATUS}${COLOR_NORMAL}\n"
-	[[ $CONTROLLER_STATUS != "Optimal" ]] && rpad "Статус контроллера" 32 " : ${COLOR_RED}${CONTROLLER_STATUS}${COLOR_NORMAL}\n"
+	if [[ $CONTROLLER_STATUS != "Optimal" ]];then
+		IS_FAILED=true
+		rpad "Статус контроллера" 32 " : ${COLOR_RED}${CONTROLLER_STATUS}${COLOR_NORMAL}\n"
+	fi
+
+	rpad "Версия прошивки" 32 " : $CONTROLLER_FIRMWARE\n"
 	rpad "Температура" 32 " : $CONTROLLER_TEMPERATURE\n"
 	rpad "Объем памяти" 32 " : $CONTROLLER_MEMORY\n"
 	rpad "Режим производительности" 32 " : $CONTROLLER_PERFMODE\n"
@@ -195,17 +203,31 @@ function adaptec_raid_check
 		rpad "Кол-во деградированных массивов" 32 " : ${COLOR_GREEN}${VOLUME_DEGRADED}${COLOR_NORMAL}\n"
 	else
 		rpad "Кол-во деградированных массивов" 32 " : ${COLOR_RED}${VOLUME_DEGRADED}${COLOR_NORMAL}\n"
+		IS_FAILED=true
 	fi
 
 	if [[ $VOLUME_FAILED -eq 0 ]]; then
 		rpad "Кол-во сбойных массивов" 32 " : ${COLOR_GREEN}${VOLUME_FAILED}${COLOR_NORMAL}\n"
 	else
 		rpad "Кол-во сбойных массивов" 32 " : ${COLOR_RED}${VOLUME_FAILED}${COLOR_NORMAL}\n"
+		IS_FAILED=true
+	fi
+
+	if [[ $CONTROLLER_DEFUNC_DRIVES -eq 0 ]]; then
+		rpad "Кол-во сбойных дисков" 32 " : ${COLOR_GREEN}${CONTROLLER_DEFUNC_DRIVES}${COLOR_NORMAL}\n"
+	else
+		rpad "Кол-во сбойных дисков" 32 " : ${COLOR_RED}${CONTROLLER_DEFUNC_DRIVES}${COLOR_NORMAL}\n"
+		IS_FAILED=true
 	fi
 
 	echo ""
 
 	local volume VOLUME_DEVICE_NAME VOLUME_RAID_LEVEL VOLUME_STATUS VOLUME_SIZE VOLUME_READ_CACHE VOLUME_WRITE_CACHE VOLUME_HOT_SPARE
+	local count=0
+	declare -a files
+
+	declare -a drive_location
+	local drive_location_count=0
 
 	for volume in $(seq 0 $(expr $VOLUME_TOTAL - 1)); do
 		OLD_IFS=$IFS
@@ -215,27 +237,50 @@ function adaptec_raid_check
 		do
 			[[ $DEBUG == true ]] &&  debug $line
 
+			[[ $line =~ "Logical Device number" ]] && VOLUME_DEVICE_NUMBER="${line#Logical Device number[[:space:]]}"
 			[[ $line =~ "Logical Device name" ]] && VOLUME_DEVICE_NAME="${line#[[:space:]]*Logical Device name[[:space:]]*:[[:space:]]}"
 			[[ $line =~ "RAID level" ]] && VOLUME_RAID_LEVEL="${line#[[:space:]]*RAID level[[:space:]]*:[[:space:]]}"
 			[[ $line =~ "Status of Logical Device" ]] && VOLUME_STATUS="${line#[[:space:]]*Status of Logical Device[[:space:]]*:[[:space:]]}"
 			[[ $line =~ "Size" ]] && VOLUME_SIZE="${line#[[:space:]]*Size[[:space:]]*:[[:space:]]}"
-			[[ $line =~ "Read-cache status" ]] && VOLUME_READ_CACHE="${line#[[:space:]]*Read-cache status[[:space:]]*:[[:space:]]}"
-			[[ $line =~ "Write-cache status" ]] && VOLUME_WRITE_CACHE="${line#[[:space:]]*Write-cache status[[:space:]]*:[[:space:]]}"
+			[[ $line =~ "Read-cache setting" ]] && VOLUME_READ_CACHE_SETTINGS="${line#[[:space:]]*Read-cache setting[[:space:]]*:[[:space:]]}"
+			[[ $line =~ "Read-cache status" ]] && VOLUME_READ_CACHE_STATUS="${line#[[:space:]]*Read-cache status[[:space:]]*:[[:space:]]}"
+			[[ $line =~ "Write-cache setting" ]] && VOLUME_WRITE_CACHE_SETTINGS="${line#[[:space:]]*Write-cache setting[[:space:]]*:[[:space:]]}"
+			[[ $line =~ "Write-cache status" ]] && VOLUME_WRITE_CACHE_STATUS="${line#[[:space:]]*Write-cache status[[:space:]]*:[[:space:]]}"
 			[[ $line =~ "Protected by Hot-Spare" ]] && VOLUME_HOT_SPARE="${line#[[:space:]]*Protected by Hot-Spare[[:space:]]*:[[:space:]]}"
+			[[ $line =~ "Dedicated Hot-Spare" ]] && VOLUME_DEDICATED_HOT_SPARE=$(adaptec_get_dedicated_hsp)
+			[[ $line =~ "Global Hot-Spare" ]] && VOLUME_GLOBAL_HOT_SPARE=$(adaptec_get_global_hsp)
 		done
 
 		echo ""
+		rpad "Номер массива" 32 ": ${VOLUME_DEVICE_NUMBER}\n"
 		rpad "Название массива" 32 ": ${VOLUME_DEVICE_NAME}\n"
 		rpad "Уровень массива" 32 ": RAID ${VOLUME_RAID_LEVEL}\n"
 		rpad "Размер массива" 32 ": ${VOLUME_SIZE}\n"
+
 		[[ $VOLUME_STATUS == "Optimal" ]] && rpad "Состояние массива" 32 ": ${COLOR_GREEN}${VOLUME_STATUS}${COLOR_NORMAL}\n"
-		[[ $VOLUME_STATUS != "Optimal" ]] && rpad "Состояние массива" 32 ": ${COLOR_RED}${VOLUME_STATUS}${COLOR_NORMAL}\n"
-		[[ $VOLUME_READ_CACHE == "On" ]] && rpad "Кэш на чтение" 32 ": ${COLOR_GREEN}${VOLUME_READ_CACHE}${COLOR_NORMAL}\n"
-		[[ $VOLUME_READ_CACHE != "On" ]] && rpad "Кэш на чтение" 32 ": ${COLOR_COLOR_YELLOW}${VOLUME_READ_CACHE}${COLOR_NORMAL}\n"
-		[[ $VOLUME_WRITE_CACHE == "On" ]] && rpad "Кэш на запись" 32 ": ${COLOR_GREEN}${VOLUME_WRITE_CACHE}${COLOR_NORMAL}\n"
-		[[ $VOLUME_WRITE_CACHE != "On" ]] && rpad "Кэш на запись" 32 ": ${COLOR_YELLOW}${VOLUME_WRITE_CACHE}${COLOR_NORMAL}\n"
+
+		if [[ $VOLUME_STATUS != "Optimal" ]]; then 
+			IS_FAILED=true
+			rpad "Состояние массива" 32 ": ${COLOR_RED}${VOLUME_STATUS}${COLOR_NORMAL}\n"
+		fi
+
+		[[ $VOLUME_READ_CACHE_SETTINGS == "Enabled" ]] && rpad "Кэш на чтение" 32 ": ${COLOR_GREEN}$VOLUME_READ_CACHE_SETTINGS${COLOR_NORMAL}\n"
+		[[ $VOLUME_READ_CACHE_SETTINGS != "Enabled" ]] && rpad "Кэш на чтение" 32 ": ${COLOR_YELLOW}$VOLUME_READ_CACHE_SETTINGS${COLOR_NORMAL}\n"
+
+		[[ $VOLUME_READ_CACHE_STATUS =~ ^On ]] && rpad "Кэш на чтение статус" 32 ": ${COLOR_GREEN}${VOLUME_READ_CACHE_STATUS}${COLOR_NORMAL}\n"
+		[[ $VOLUME_READ_CACHE_STATUS != "On" ]] && rpad "Кэш на чтение статус" 32 ": ${COLOR_YELLOW}${VOLUME_READ_CACHE_STATUS}${COLOR_NORMAL}\n"
+
+		[[ $VOLUME_WRITE_CACHE_SETTINGS =~ ^Enabled|On ]] && rpad "Кэш на запись" 32 ": ${COLOR_GREEN}$VOLUME_WRITE_CACHE_SETTINGS${COLOR_NORMAL}\n"
+		[[ ! $VOLUME_WRITE_CACHE_SETTINGS =~ ^Enabled|On ]] && rpad "Кэш на запись" 32 ": ${COLOR_YELLOW}$VOLUME_WRITE_CACHE_SETTINGS${COLOR_NORMAL}\n"
+
+		[[ $VOLUME_WRITE_CACHE_STATUS =~ ^On ]] && rpad "Кэш на запись статус" 32 ": ${COLOR_GREEN}${VOLUME_WRITE_CACHE_STATUS}${COLOR_NORMAL}\n"
+		[[ $VOLUME_WRITE_CACHE_STATUS != "On" ]] && rpad "Кэш на запись статус" 32 ": ${COLOR_YELLOW}${VOLUME_WRITE_CACHE_STATUS}${COLOR_NORMAL}\n"
+
 		[[ $VOLUME_HOT_SPARE == "No" ]] && rpad "Защишен диском гор. замены" 32 ": ${COLOR_YELLOW}${VOLUME_HOT_SPARE}${COLOR_NORMAL}\n"
 		[[ $VOLUME_HOT_SPARE != "No" ]] && rpad "Защишен диском гор. замены" 32 ": ${COLOR_GREEN}${VOLUME_HOT_SPARE}${COLOR_NORMAL}\n"
+
+		[[ -n $VOLUME_DEDICATED_HOT_SPARE ]] && rpad "Выделенный диск гор. замены" 32 ": $VOLUME_DEDICATED_HOT_SPARE\n"
+		[[ -n $VOLUME_GLOBAL_HOT_SPARE ]] && rpad "Глобальный диск гор. замены" 32 ": $VOLUME_GLOBAL_HOT_SPARE\n"
 
 		local FPOS=$(expr $(arcconf GETCONFIG 1 LD "$volume" | grep -n "Logical Device segment information" | cut -d ':' -f 1) + 2)
 		local LPOS=$(arcconf GETCONFIG 1 LD "$volume" | wc -l)
@@ -246,15 +291,37 @@ function adaptec_raid_check
 		local filename="/tmp/${RANDOM}.random.txt"
 		touch $filename
 
-		echo -e "Шина\tУстройство\tИнтерфейс\tТип\tМодель\tРазмер" > $filename
+		echo -e "Устройство\tМодель\tСерийный номер\tРазмер\tСтатус" > $filename
 
-		local pattern="[[:space:]]*Segment [0-9]*[[:space:]]*: Present \(([0-9]+)MB, ([A-Z]*), ([A-Z]*), Connector:([0-9]+), Device:([0-9]+)\)[[:space:]]*([0-9A-Z -]*)"
+		local pattern="[[:space:]]*Segment [0-9]*[[:space:]]*: [A-Za-z]+ \(([0-9]+)MB, ([A-Z]*), ([A-Z]*), Connector:([0-9]+), Device:([0-9]+)\)[[:space:]]*([0-9A-Z -]*)"
 		local line
+
+		local volume_filename="/tmp/${RANDOM}.random.txt"
+		touch $volume_filename
+
+		files[count]=$volume_filename
+		
+		echo "${VOLUME_DEVICE_NUMBER};${VOLUME_DEVICE_NAME};${VOLUME_RAID_LEVEL};${VOLUME_SIZE};${VOLUME_STATUS}" > $volume_filename
 
 		while read line
 		do
 			if [[ $line =~ $pattern ]]; then
-				echo -e "${BASH_REMATCH[4]}\t${BASH_REMATCH[5]}\t${BASH_REMATCH[2]}\t${BASH_REMATCH[3]}\t${BASH_REMATCH[6]}\t${BASH_REMATCH[1]}Mb" >> $filename
+				local drive_info
+				IFS=',' read -r -a drive_info <<< "$(arcconf GETCONFIG 1 PD | awk -v con=${BASH_REMATCH[4]} -v dev=${BASH_REMATCH[5]} -f lib/adaptec_get_driveinfo.awk)"
+				echo "${drive_info[0]},${drive_info[1]};${drive_info[2]};${drive_info[3]};${drive_info[4]};${drive_info[5]}" >> $volume_filename
+
+				if [[ ${drive_info[5]} != "Online" ]]; then
+
+					[[ ${drive_info[5]} == "Rebuilding" ]] && drive_info[5]="${COLOR_YELLOW}${drive_info[5]}${COLOR_NORMAL}"
+					[[ ${drive_info[5]} != "Rebuilding" ]] && drive_info[5]="${COLOR_RED}${drive_info[5]}${COLOR_NORMAL}"
+				fi
+
+				echo -e "${drive_info[0]},${drive_info[1]}\t${drive_info[2]}\t${drive_info[3]}\t${drive_info[4]}\t${drive_info[5]}"  >> $filename
+
+				[[ ${drive_info[5]} != "Online" ]] && IS_FAILED=true
+
+				drive_location[drive_location_count]="${drive_info[0]}${drive_info[1]}"
+				drive_location_count=$(( drive_location_count + 1 ))
 			fi
 		done < <(arcconf GETCONFIG 1 LD "$volume" | sed -n ${FPOS},${LPOS}p)
 
@@ -262,41 +329,105 @@ function adaptec_raid_check
 		tput sgr0
 		table_output $filename
 		tput sgr0
+
+		count=$(( count + 1 ))
 	done
 
-	echo "Убедитесь, что информация верна и отсутствуют ошибки"
-	read -p  "сохранить данную конфигурацию Y/n"  -n 1 -r
+	echo "Перечень дисков не входяших в массивы (Hot-Spare, Failed, Ready)"
 
-	local $REPLY
+	local filename="/tmp/${RANDOM}.random.txt"
+	touch $filename
 
-	if [[ $REPLY =~ ^[Nn]$ ]]; then
+	echo -e "Устройство\tМодель\tСерийный номер\tРазмер\tСтатус" > $filename
+
+	while IFS="," read c d
+	do
+		local index=0
+		local match=0
+
+		while [[ "x${drive_location[$index]}" != "x" ]]
+		do
+			[[ "${drive_location[$index]}" == "$c$d" ]] && match=1
+			index=$(( index + 1 ))
+		done
+
+		[[ match -eq 1 ]] && continue
+		
+		local drive_info
+		IFS=',' read -r -a drive_info <<< "$(arcconf GETCONFIG 1 PD | awk -v con=$c -v dev=$d -f lib/adaptec_get_driveinfo.awk)"
+		[[ "${drive_info[5]}" == "Failed" ]] && drive_info[5]="${COLOR_RED}${drive_info[5]}${COLOR_NORMAL}"
+
+		echo -e "${drive_info[0]},${drive_info[1]}\t${drive_info[2]}\t${drive_info[3]}\t${drive_info[4]}\t${drive_info[5]}"  >> $filename
+	done < <(arcconf GETCONFIG 1 PD | grep 'Reported Location' | awk -F" " '{print $5$7}')
+
+	tput sgr0
+	table_output $filename
+	tput sgr0
+
+	if [[ $1 == "REPORT" ]]; then
 		return
 	fi
 
+	if [[ $AUTO_ANSWER == "no" ]]; then
+
+		if [[ $IS_FAILED == "true" ]]; then
+			echo "Состояние контроллера или одного из его массивов или дисков содержит ошибку. Устраните ошибки до постановки контроллера на мониторинг"
+			exit 1
+		fi
+
+		echo "Убедитесь, что информация верна и отсутствуют ошибки"
+		read -p  "сохранить данную конфигурацию Y/n"  -n 1 -r
+
+		if [[ $REPLY =~ ^[Nn]$ || ! $REPLY =~ ^[Yy]$ ]]; then
+			return
+		fi
+	fi
+
+	rm -f $ADAPTEC_INIT_STATE/*
 	echo ""
-	echo "Controller Status: ${CONTROLLER_STATUS}" > $ADAPTEC_INIT_STATE
+	count=0
 
-	local volume
-
-	for volume in $(seq 0 $(expr $VOLUME_TOTAL - 1)); do
-		OLD_IFS=$IFS
-		IFS=$'\n'
-
-		local line
-		for line in $(arcconf GETCONFIG 1 LD "$volume"); do
-			[[ $line =~ "Logical Device name" ]] && VOLUME_DEVICE_NAME="${line#[[:space:]]*Logical Device name[[:space:]]*:[[:space:]]}"
-			[[ $line =~ "Status of Logical Device" ]] && VOLUME_STATUS="${line#[[:space:]]*Status of Logical Device[[:space:]]*:[[:space:]]}"
-		done
-
-		IFS=$OLD_IFS
-		echo "Volume: ${VOLUME_DEVICE_NAME}, Status: ${VOLUME_STATUS}" >> $ADAPTEC_INIT_STATE
+	while [ "x${files[count]}" != "x" ]
+	do
+		cp ${files[count]} $ADAPTEC_INIT_STATE/volume.${count}
+   		count=$(( $count + 1 ))
 	done
+
 
 	echo "данные сохранены, ставим массив на мониторинг"
 	echo ""
 	echo "*/$CRONTAB_REFRESH_TIME * * * * root cd $CWD && ./jobs/adaptec.sh" > /etc/cron.d/adaptec-monitor
 }
 
+function adaptec_get_volume_level
+{
+	echo $( arcconf GETCONFIG 1 LD $1 | grep '[[:space:]]*RAID level[[:space:]]*:' | awk -F": " '{print $2}')
+}
+
+function adaptec_get_volume_size
+{
+	echo $( arcconf GETCONFIG 1 LD $1 | grep '[[:space:]]*Size[[:space:]]*:' | awk -F": " '{print $2}')
+}
+
+function adaptec_get_volume_name
+{
+	echo $( arcconf GETCONFIG 1 LD $1 | grep '[[:space:]]*Logical Device name[[:space:]]*:' | awk -F": " '{print $2}')
+}
+
+function adaptec_get_controller_name
+{
+	echo $(arcconf GETCONFIG 1 AD | grep 'Controller Model' | awk -F": " '{print $2}')
+}
+
+function adaptec_get_global_hsp
+{
+	echo $(arcconf GETCONFIG 1 LD 0 | grep 'Global Hot-Spare' | awk -F": " 'BEGIN { disk="" } { if (disk == "") { disk = $2 } else { disk = disk " " $2 } } END { print disk }')
+}
+
+function adaptec_get_dedicated_hsp
+{
+	echo $(arcconf GETCONFIG 1 LD $1 | grep 'Dedicated Hot-Spare' | awk -F": " 'BEGIN { disk="" } { if (disk == "") { disk = $2 } else { disk = disk " " $2 } } END { print disk }')
+}
 
 function hp_raid_check
 {
@@ -351,7 +482,7 @@ function hp_raid_check
 	rpad "Версия прошивки" 32 " : ${CONTROLLER_FIRMWARE}\n"
 	
 	[[ $CONTROLLER_STATUS == "OK" ]] && rpad "Статус контроллера" 32 " : ${COLOR_GREEN}${CONTROLLER_STATUS}${COLOR_NORMAL}\n"
-
+	
 	if [[ $CONTROLLER_STATUS != "OK" ]]; then
 		rpad "Статус контроллера" 32 " : ${COLOR_GREEN}${CONTROLLER_STATUS}${COLOR_NORMAL}\n"
 		IS_FAILED=true
@@ -451,7 +582,7 @@ function hp_raid_check
 					DEVICE_SERIAL=$(echo $DEVICE_SERIAL | sed -re "s/^\s*//; s/\s{2,}/ /")
 				done
 
-				if [[ $DEVICE_STATUS != "OK "]] && IS_FAILED=true
+				[[ $DEVICE_STATUS != "OK" ]] && IS_FAILED=true
 
 				if [[ $DEVICE_STATUS == "Failed" ]]; then
 					DEVICE_STATUS="${COLOR_RED}${DEVICE_STATUS}${COLOR_NORMAL}"
@@ -459,7 +590,6 @@ function hp_raid_check
 				elif [[ $DEVICE_STATUS == "Rebuilding" ]]; then
 					DEVICE_STATUS="${COLOR_YELLOW}${DEVICE_STATUS}${COLOR_NORMAL}"
 				fi
-
 
 				[[ $DEBUG == true ]] && echo ""
 				echo -e "$DEVICE_PORT\t$DEVICE_TYPE\t$DEVICE_MODEL\t$DEVICE_SERIAL\t$DEVICE_SIZE\t$DEVICE_STATUS" >> $filename
@@ -511,10 +641,17 @@ function hp_raid_check
 	echo ""
 	echo "*/$CRONTAB_REFRESH_TIME * * * * root cd $CWD && ./jobs/hp_smartarray.sh" > /etc/cron.d/hp_smartarray-monitor
 
-	send_notify "Контроллер $CONTROLLER_NAME поставлен на мониторинг"
+	message=$(hp_make_report)
+ 	report="tmp/${RANDOM}.report.txt"
+ 	echo "$message" | lib/ansi2html.sh > $report
+
+ 	IP=$(get_primary_ip_address)
+	send_notify "Контроллер $CONTROLLER_NAME на сервере $IP поставлен на мониторинг" $report
+	rm -f $report
 
 	IFS=$OLD_IFS
 }
+
 
 function hp_make_report
 {
