@@ -4,6 +4,7 @@ rm -rf /opt/raid-tools
 cd /opt && git clone https://github.com/vmanyushin/raid-tools
 
 rm -rf /opt/raid-tools/.git
+rm -rf /opt/raid-tools/packages
 rm /opt/raid-tools/.gitignore
 
 rm -rf /home/sysop/development/packages/*
