@@ -1,4 +1,4 @@
-#!/bin/awk
+#!/bin/gawk
 #
 # created: 21.08.2016
 # updated: 
